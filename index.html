@@ -232,14 +232,12 @@
     </style>
 </head>
 <body>
-    <!-- Loading Screen -->
     <div id="loadingOverlay" class="loading-overlay">
         <img src="/generate-loading.gif" alt="Carregando" class="loading-gif">
         <div class="loading-text">Gerando QR Code</div>
     </div>
 
     <div class="container">
-        <!-- Header -->
         <div class="header">
             <img src="images/novalogovakinha.png" alt="Vakinha" class="logo">
             <a href="#" class="secure-badge">
@@ -250,13 +248,11 @@
             </a>
         </div>
 
-        <!-- Main Title -->
-        <h1 class="main-title">
+        <h1 class="main-title" id="main-title">
             Falta pouco! Para finalizar a compra,<br>
             escaneie o QR Code abaixo.
         </h1>
 
-        <!-- Warning Box -->
         <div class="warning-box">
             <p>
                 O beneficiário do <strong>PIX</strong> é a <strong>AJUDA SOLIDARIA.</strong><br>
@@ -264,9 +260,7 @@
             </p>
         </div>
 
-        <!-- Content Grid -->
         <div class="content-grid">
-            <!-- QR Code Section -->
             <div class="card">
                 <div class="expiry-time">
                     O código expira em: <span id="expiryTime">15:00</span>
@@ -275,8 +269,7 @@
                 
                 <div class="qr-code-container">
                     <div class="qr-code" id="qrCodeDisplay">
-                        <!-- QR Code será gerado aqui -->
-                    </div>
+                        </div>
                 </div>
 
                 <hr class="divider">
@@ -297,7 +290,6 @@
                 </div>
             </div>
 
-            <!-- Instructions Section -->
             <div class="card">
                 <h2 style="margin-bottom: 16px;">Detalhes da compra</h2>
                 <hr class="divider">
@@ -340,44 +332,7 @@
     </div>
 
     <script>
-        // Função para inicializar o pagamento
-        async function initializePayment() {
-            try {
-                // Aqui você fará a chamada para sua API no Render
-                const response = await fetch('https://seu-backend.onrender.com/create-payment', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        amount: 100.00, // Valor do pagamento
-                        description: 'Pagamento Vakinha'
-                    })
-                });
-
-                const paymentData = await response.json();
-
-                if (paymentData.success) {
-                    // Atualizar QR Code
-                    document.getElementById('qrCodeDisplay').innerHTML = 
-                        `<img src="${paymentData.qr_code}" alt="QR Code PIX" style="width: 100%; height: 100%;">`;
-                    
-                    // Atualizar código PIX
-                    document.getElementById('pixCode').value = paymentData.pix_code;
-                    
-                    // Atualizar valor total
-                    document.getElementById('totalAmount').textContent = 
-                        `R$ ${paymentData.amount.toFixed(2)}`;
-                    
-                    // Esconder loading
-                    document.getElementById('loadingOverlay').classList.add('hidden');
-                }
-            } catch (error) {
-                console.error('Erro ao inicializar pagamento:', error);
-                // Em caso de erro, mostrar dados padrão
-                document.getElementById('loadingOverlay').classList.add('hidden');
-            }
-        }
+        // --- 1. FUNÇÕES AUXILIARES ---
 
         // Função para copiar código PIX
         function copyPixCode() {
@@ -402,7 +357,6 @@
         function startCountdown() {
             let minutes = 15;
             let seconds = 0;
-            
             const countdownElement = document.getElementById('expiryTime');
             
             const interval = setInterval(() => {
@@ -424,7 +378,72 @@
             }, 1000);
         }
 
-        // Inicializar quando a página carregar
+        // --- 2. FUNÇÃO PRINCIPAL DE PAGAMENTO ---
+
+        async function initializePayment() {
+            // URL do backend que você vai criar no Render
+            // !! MUDE AQUI QUANDO TIVER A URL !!
+            const BACKEND_URL = 'https://seu-backend.onrender.com/criar-pix'; 
+            
+            // Pega o valor da URL (ex: ?valor=15)
+            const urlParams = new URLSearchParams(window.location.search);
+            const valorString = urlParams.get('valor');
+            
+            if (!valorString) {
+                // Se não houver valor, mostra erro e para
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                document.getElementById('main-title').textContent = 'Erro: Valor não selecionado.';
+                document.querySelector('.warning-box').classList.add('hidden');
+                document.querySelector('.content-grid').classList.add('hidden');
+                return;
+            }
+
+            const valorNumerico = parseFloat(valorString);
+
+            // Atualiza o "Valor total" na tela IMEDIATAMENTE
+            document.getElementById('totalAmount').textContent = 
+                `R$ ${valorNumerico.toFixed(2).replace('.', ',')}`;
+
+            try {
+                // Chama o seu backend no Render
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: valorNumerico // Envia o valor lido da URL
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Falha na rede ou erro no servidor');
+                }
+
+                const paymentData = await response.json();
+
+                if (paymentData.success) {
+                    // Atualiza QR Code (espera uma imagem base64)
+                    document.getElementById('qrCodeDisplay').innerHTML = 
+                        `<img src="${paymentData.qr_code}" alt="QR Code PIX" style="width: 200px; height: 200px;">`;
+                    
+                    // Atualiza código PIX
+                    document.getElementById('pixCode').value = paymentData.pix_code;
+                    
+                    // Esconde o loading
+                    document.getElementById('loadingOverlay').classList.add('hidden');
+                } else {
+                    throw new Error(paymentData.error || 'Erro ao gerar PIX');
+                }
+            } catch (error) {
+                console.error('Erro ao inicializar pagamento:', error);
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                document.getElementById('qrCodeDisplay').textContent = 'Erro ao gerar QR Code.';
+                document.getElementById('pixCode').value = 'Erro ao gerar código.';
+            }
+        }
+
+        // --- 3. INICIALIZAR QUANDO A PÁGINA CARREGAR ---
         document.addEventListener('DOMContentLoaded', function() {
             initializePayment();
             startCountdown();
